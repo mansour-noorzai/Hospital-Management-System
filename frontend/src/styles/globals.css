@@ -1,0 +1,247 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 207 53% 96%;
+    --foreground: 222 34% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 34% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 202 93% 43%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 204 45% 94%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 205 40% 94%;
+    --muted-foreground: 216 15% 44%;
+    --accent: 188 86% 38%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 208 32% 89%;
+    --input: 208 30% 84%;
+    --ring: 202 93% 43%;
+    --radius: 1.1rem;
+    --shell-shadow: 0 18px 45px hsl(217 42% 19% / 0.07);
+    --card-shadow: 0 12px 34px hsl(217 42% 19% / 0.055);
+  }
+
+  .dark {
+    --background: 222 38% 8%;
+    --foreground: 210 40% 98%;
+    --card: 221 34% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 40% 10%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 194 84% 55%;
+    --primary-foreground: 222 47% 8%;
+    --secondary: 217 33% 16%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 30% 15%;
+    --muted-foreground: 215 20% 70%;
+    --accent: 187 76% 43%;
+    --accent-foreground: 222 47% 8%;
+    --destructive: 0 63% 42%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 218 25% 20%;
+    --input: 218 24% 24%;
+    --ring: 194 84% 55%;
+    --shell-shadow: 0 20px 52px hsl(0 0% 0% / 0.3);
+    --card-shadow: 0 14px 38px hsl(0 0% 0% / 0.2);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    min-width: 320px;
+    background: hsl(var(--background));
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-background text-foreground antialiased;
+    font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  html[dir='rtl'] body {
+    font-family: Vazirmatn, Tahoma, Arial, ui-sans-serif, system-ui, sans-serif;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-color: hsl(var(--muted-foreground) / 0.34) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+@layer components {
+  .app-main {
+    background:
+      radial-gradient(circle at 12% 0%, hsl(var(--primary) / 0.07), transparent 30rem),
+      radial-gradient(circle at 92% 8%, hsl(var(--accent) / 0.05), transparent 26rem),
+      hsl(var(--background));
+  }
+
+  .app-main > div > .space-y-6 > div:first-child h1,
+  .app-main > div > div > h1 {
+    @apply tracking-tight;
+  }
+
+  .app-main :is(.rounded-lg, .rounded-xl, .rounded-2xl).border.bg-card {
+    box-shadow: var(--card-shadow);
+  }
+
+  .page-heading {
+    @apply text-2xl font-extrabold tracking-tight text-foreground sm:text-[1.7rem];
+  }
+
+  .page-description {
+    @apply mt-1 text-sm leading-6 text-muted-foreground;
+  }
+
+  .surface-card {
+    @apply rounded-[22px] border border-border/70 bg-card;
+    box-shadow: var(--card-shadow);
+  }
+
+  .icon-tile {
+    @apply grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary;
+  }
+
+  .section-title {
+    @apply text-base font-bold tracking-tight text-foreground;
+  }
+
+  .interactive-row {
+    @apply transition duration-200 hover:-translate-y-px hover:bg-muted/55;
+  }
+
+  .chart-tooltip {
+    @apply rounded-xl border border-border/70 bg-card px-3 py-2 text-xs shadow-xl;
+  }
+
+  html[dir='rtl'] .text-left {
+    text-align: right;
+  }
+
+  html[dir='rtl'] .text-right {
+    text-align: left;
+  }
+
+  html[dir='rtl'] input[type='email'],
+  html[dir='rtl'] input[type='url'] {
+    direction: ltr;
+    text-align: left;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .safe-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+
+  .app-shell aside,
+  .app-shell header,
+  .app-shell [role='dialog'] {
+    display: none !important;
+  }
+
+  .app-content-shell,
+  .app-main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+
+  .app-main > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .app-main button,
+  .app-main input[type='file'] {
+    display: none !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr,
+  .surface-card {
+    break-inside: avoid;
+  }
+
+  * {
+    print-color-adjust: exact;
+  }
+
+  .surface-card,
+  [class*='shadow-'] {
+    box-shadow: none !important;
+  }
+}
