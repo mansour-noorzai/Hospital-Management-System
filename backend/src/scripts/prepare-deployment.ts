@@ -3,6 +3,7 @@ import { connectDB, disconnectDB } from '../db/mongoose';
 import { connectRedis, disconnectRedis } from '../db/redis';
 import mongoose from 'mongoose';
 import { seedDemo } from './seed-demo';
+import { prepareSharedState } from '../db/sharedState';
 import '../routes';
 
 async function prepare() {
@@ -12,6 +13,7 @@ async function prepare() {
   }
   await connectDB();
   await connectRedis();
+  await prepareSharedState();
   // Create missing indexes; never drop collections, existing indexes, or records.
   for (const model of Object.values(mongoose.models)) await model.createIndexes();
   if (process.env.DEMO_MODE === 'true') {

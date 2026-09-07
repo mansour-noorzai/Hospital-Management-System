@@ -1,6 +1,10 @@
 import { Server as HttpServer } from "http";
 import { Server as SocketServer } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
+import { createAdapter as createMongoAdapter } from '@socket.io/mongo-adapter';
+import mongoose from 'mongoose';
+import { usesRedis } from '../config/stateBackend';
+import { SOCKET_EVENTS } from '../db/sharedState';
 import { getRedisClient } from "../db/redis";
 import { logger } from "../middleware/requestLogger";
 import { isAllowedOrigin } from "../config/origins";
@@ -78,9 +82,21 @@ export function initSocket(
 
 let adapterReady: Promise<void> | undefined;
 
+export function createMongoSocketAdapter() {
+  if (!mongoose.connection.db) throw new Error('Database unavailable');
+  return createMongoAdapter(mongoose.connection.db.collection(SOCKET_EVENTS), {
+    addCreatedAtField: true,
+    changeStreamOptions: { maxAwaitTimeMS: 1000 },
+  });
+}
+
 export async function connectSocketAdapter(): Promise<void> {
   if (!io) return;
   if (!adapterReady) adapterReady = (async () => {
+    if (!usesRedis()) {
+      io.adapter(createMongoSocketAdapter());
+      return;
+    }
     const client = getRedisClient();
     const pubClient = client.duplicate({ lazyConnect: true });
     const subClient = client.duplicate({ lazyConnect: true });

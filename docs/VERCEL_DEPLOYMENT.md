@@ -16,7 +16,8 @@ Set secrets through Vercel environment settings, never in source code or build l
 | NODE_ENV | production |
 | SECRETS_PROVIDER | env (AWS Secrets Manager is available with `aws`) |
 | MONGODB_URI | MongoDB Atlas connection URI with a dedicated database and database user |
-| REDIS_URL | TLS Redis connection URI beginning with `rediss://` |
+| STATE_BACKEND | mongodb (default; no Redis service needed) |
+| REDIS_URL | Only required for optional STATE_BACKEND=redis; must begin with `rediss://` |
 | JWT_SECRET | Independently generated random secret, at least 32 characters |
 | JWT_REFRESH_SECRET | Different random secret, at least 32 characters |
 | CRON_SECRET | Random secret, at least 32 characters |
@@ -62,8 +63,15 @@ marks unpaid issued invoices overdue, and emits inventory expiry notifications.
 Cancellation can therefore occur at the next daily run, up to 48 hours after creation.
 An hourly schedule requires an appropriate Vercel plan; no plan upgrade is automatic.
 
-Socket.IO uses WebSocket transport and a Redis adapter for events across instances.
+Socket.IO uses WebSocket transport and the official MongoDB adapter for events across
+instances. Atlas provides the required replica set and change streams. Temporary event
+records expire after five minutes; request-limit counters also expire automatically.
+Rate limits use atomic MongoDB counters shared by every instance, and production
+requests fail closed if the database is unavailable. Redis remains an optional backend.
 Clients reconnect and refresh cached data after a function connection expires.
+
+The free deployment requires only Vercel Hobby and MongoDB Atlas Free. Free quotas,
+shared database capacity and connection limits apply; no paid plan is auto-enabled.
 
 ## Verification and release
 

@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { getRedisClient } from '../db/redis';
+import { usesRedis } from '../config/stateBackend';
+import { incrementRequestCount } from '../db/sharedState';
 import { logger } from './requestLogger';
 import { errorResponse } from '../types/api';
 
@@ -18,16 +20,18 @@ return current
 
 export async function rateLimiter(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const redis = getRedisClient();
     const identifier = req.ip ?? 'unknown';
     const key = `ratelimit:${identifier}`;
 
-    const current = await redis.eval(RATE_LIMIT_LUA, 1, key, String(WINDOW_SECONDS)) as number;
+    const current = usesRedis()
+      ? await getRedisClient().eval(RATE_LIMIT_LUA, 1, key, String(WINDOW_SECONDS)) as number
+      : await incrementRequestCount(identifier, WINDOW_SECONDS);
 
     res.setHeader('X-RateLimit-Limit', MAX_REQUESTS);
     res.setHeader('X-RateLimit-Remaining', Math.max(0, MAX_REQUESTS - current));
 
     if (current > MAX_REQUESTS) {
+      res.setHeader('Retry-After', WINDOW_SECONDS);
       res.status(429).json(errorResponse('RATE_LIMIT_EXCEEDED', 'Too many requests — please try again later'));
       return;
     }
@@ -38,8 +42,8 @@ export async function rateLimiter(req: Request, res: Response, next: NextFunctio
       res.status(503).json(errorResponse('SERVICE_UNAVAILABLE', 'Service is temporarily unavailable.'));
       return;
     }
-    // Redis unavailable — fail open (don't block requests)
-    logger.warn('Rate limiter Redis error — failing open', { error: (err as Error).message });
+    // Local development can run without shared infrastructure.
+    logger.warn('Rate limiter store unavailable in local development');
     next();
   }
 }

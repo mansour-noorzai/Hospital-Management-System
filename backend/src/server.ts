@@ -8,6 +8,7 @@ import { logger } from './middleware/requestLogger';
 import { fetchSecrets } from './config/secrets';
 import { startAppointmentJobs } from './jobs/appointments';
 import { startInventoryJobs } from './jobs/inventory';
+import { prepareSharedState } from './db/sharedState';
 
 async function bootstrap() {
   const secrets = await fetchSecrets();
@@ -19,6 +20,7 @@ async function bootstrap() {
   process.env.JWT_REFRESH_SECRET = secrets.JWT_REFRESH_SECRET;
 
   await connectDB();
+  await prepareSharedState();
   await connectRedis();
 
   const server = http.createServer(app);

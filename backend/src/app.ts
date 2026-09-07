@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
 import { getRedisClient } from './db/redis';
+import { usesRedis } from './config/stateBackend';
 import { isAllowedOrigin } from './config/origins';
 import { errorHandler, ForbiddenError } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
@@ -54,7 +55,7 @@ app.get('/api/v1/health', async (_req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) throw new Error('Database unavailable');
     await mongoose.connection.db!.admin().ping();
-    await getRedisClient().ping();
+    if (usesRedis()) await getRedisClient().ping();
     res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
   } catch {
     res.status(503).json({ success: false, error: { code: 'NOT_READY', message: 'Service is temporarily unavailable.' } });

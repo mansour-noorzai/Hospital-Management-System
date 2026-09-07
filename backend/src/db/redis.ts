@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { usesRedis } from '../config/stateBackend';
 import { logger } from "../middleware/requestLogger";
 
 let redisClient: Redis | null = null;
@@ -12,6 +13,7 @@ export function getRedisClient(): Redis {
 }
 
 export async function connectRedis(url?: string): Promise<Redis | null> {
+  if (!usesRedis()) return null;
   if (redisClient?.status === 'ready') return redisClient;
   if (!connecting) connecting = openRedis(url).finally(() => { connecting = null; });
   return connecting;
