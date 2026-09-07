@@ -9,5 +9,5 @@
 **/.env.*
 !**/.env.example
 .vercel
-public
-docs
+/public
+/docs
