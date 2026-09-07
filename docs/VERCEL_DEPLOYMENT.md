@@ -87,3 +87,11 @@ shared database capacity and connection limits apply; no paid plan is auto-enabl
 The repository configuration alone does not establish a live production deployment.
 Database provisioning, SMTP, Git integration and live checks must be recorded after
 they actually succeed. This demo deployment is not a clinical or regulatory certification.
+
+### Recovering demo credentials
+
+For the isolated demo only, set a new strong `DEMO_PASSWORD` and a unique
+`DEMO_PASSWORD_ROTATION_ID`, then deploy. This explicitly rotates the six seeded
+accounts and revokes their sessions once per identifier. Existing hospital records
+and later password edits are preserved. Remove the rotation variable after success.
+Never enable this recovery workflow for real patient data.

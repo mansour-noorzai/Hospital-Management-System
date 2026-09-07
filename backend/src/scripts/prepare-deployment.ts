@@ -4,6 +4,7 @@ import { connectRedis, disconnectRedis } from '../db/redis';
 import mongoose from 'mongoose';
 import { seedDemo } from './seed-demo';
 import { prepareSharedState } from '../db/sharedState';
+import { rotateDemoPassword } from './rotate-demo-password';
 import '../routes';
 
 async function prepare() {
@@ -19,6 +20,7 @@ async function prepare() {
   if (process.env.DEMO_MODE === 'true') {
     await seedDemo();
   }
+  await rotateDemoPassword();
   console.log('Deployment database preparation completed.');
 }
 

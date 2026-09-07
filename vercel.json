@@ -4,7 +4,7 @@
   "installCommand": "npm ci --include=dev && npm ci --prefix backend --include=dev && npm ci --prefix frontend --include=dev",
   "buildCommand": "npm run build:vercel",
   "functions": {
-    "server.ts": { "maxDuration": 300 }
+    "server.js": { "maxDuration": 300 }
   },
   "rewrites": [
     { "source": "/((?!api(?:/|$)|socket.io(?:/|$)|assets/).*)", "destination": "/index.html" }

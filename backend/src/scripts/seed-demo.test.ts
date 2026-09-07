@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { seedDemo } from './seed-demo';
+import { rotateDemoPassword } from './rotate-demo-password';
 import { User } from '../models/User';
 import { Hospital } from '../models/Hospital';
 import { Patient } from '../models/Patient';
@@ -73,3 +74,29 @@ test('maintenance rejects unauthenticated callers', async () => {
   const result = await request(app).get('/api/v1/internal/maintenance');
   expect(result.status).toBe(401);
 });
+
+test('explicit demo recovery rotates once and preserves subsequent password edits', async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.DEMO_PASSWORD_ROTATION_ID = 'test-handover';
+    await expect(rotateDemoPassword()).rejects.toThrow('explicit demo settings');
+    process.env.DEMO_MODE = 'true';
+    process.env.ALLOW_DEMO_SEED = 'true';
+    process.env.DEMO_PASSWORD = 'Recovered-Demo-Password-2026!';
+    await rotateDemoPassword();
+    const users = await User.find().select('+password +sessionVersion');
+    expect(users).toHaveLength(6);
+    for (const user of users) expect(await user.comparePassword(process.env.DEMO_PASSWORD)).toBe(true);
+    const admin = users.find(user => user.role === 'admin')!;
+    expect(admin.firstName).toBe('Preserved edit');
+    const version = admin.sessionVersion;
+    admin.password = 'Owner-Changed-Password-2026!';
+    await admin.save();
+    await rotateDemoPassword();
+    const preserved = await User.findById(admin._id).select('+password +sessionVersion');
+    expect(await preserved!.comparePassword('Owner-Changed-Password-2026!')).toBe(true);
+    expect(preserved!.sessionVersion).toBe(version);
+    expect(await Appointment.countDocuments()).toBe(2);
+    expect(await Invoice.countDocuments()).toBe(1);
+  } finally { process.env = saved; }
+}, 120000);
