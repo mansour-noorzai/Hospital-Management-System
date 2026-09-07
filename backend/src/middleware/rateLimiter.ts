@@ -34,6 +34,10 @@ export async function rateLimiter(req: Request, res: Response, next: NextFunctio
 
     next();
   } catch (err) {
+    if (process.env.NODE_ENV === 'production') {
+      res.status(503).json(errorResponse('SERVICE_UNAVAILABLE', 'Service is temporarily unavailable.'));
+      return;
+    }
     // Redis unavailable — fail open (don't block requests)
     logger.warn('Rate limiter Redis error — failing open', { error: (err as Error).message });
     next();

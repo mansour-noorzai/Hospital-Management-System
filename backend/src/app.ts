@@ -2,14 +2,20 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { env } from './config/env';
+import mongoose from 'mongoose';
+import { getRedisClient } from './db/redis';
+import { isAllowedOrigin } from './config/origins';
 import { errorHandler, ForbiddenError } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { rateLimiter } from './middleware/rateLimiter';
 import { router } from './routes';
 import { auditMutations } from './middleware/auditLog';
+import { maintenanceHandler } from './jobs/maintenance';
 
 const app = express();
+app.disable('x-powered-by');
+if (process.env.VERCEL) app.set('trust proxy', 1);
+app.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
 
 // Security headers
 app.use(helmet({
@@ -24,10 +30,9 @@ app.use(helmet({
 }));
 
 // CORS — allow origins from env.CORS_ORIGINS (comma-separated)
-const allowedOrigins = new Set(env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean));
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new ForbiddenError(`Origin ${origin} is not allowed by CORS`));
@@ -45,11 +50,19 @@ app.use(requestLogger);
 app.use(rateLimiter);
 
 // Health check (no auth)
-app.get('/api/v1/health', (_req, res) => {
-  res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+app.get('/api/v1/health', async (_req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) throw new Error('Database unavailable');
+    await mongoose.connection.db!.admin().ping();
+    await getRedisClient().ping();
+    res.json({ success: true, data: { status: 'ok', timestamp: new Date().toISOString() } });
+  } catch {
+    res.status(503).json({ success: false, error: { code: 'NOT_READY', message: 'Service is temporarily unavailable.' } });
+  }
 });
 
 // API routes
+app.get('/api/v1/internal/maintenance', maintenanceHandler);
 app.use('/api/v1', auditMutations, router);
 
 app.use(errorHandler);

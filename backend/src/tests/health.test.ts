@@ -20,12 +20,12 @@ import { app } from '../app';
 import { AppError, errorHandler } from '../middleware/errorHandler';
 
 describe('GET /api/v1/health', () => {
-  it('returns 200 with success true and status ok', async () => {
+  it('returns 503 when database services are not connected', async () => {
     const res = await request(app).get('/api/v1/health');
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('ok');
-    expect(res.body.data.timestamp).toBeDefined();
+    expect(res.status).toBe(503);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('NOT_READY');
+    expect(res.headers['cache-control']).toBe('private, no-store');
   });
 });
 

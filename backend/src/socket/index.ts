@@ -3,7 +3,7 @@ import { Server as SocketServer } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { getRedisClient } from "../db/redis";
 import { logger } from "../middleware/requestLogger";
-import { env } from "../config/env";
+import { isAllowedOrigin } from "../config/origins";
 import jwt from "jsonwebtoken";
 import { User } from '../models/User';
 import { currentHospitalId } from '../tenant/context';
@@ -19,35 +19,31 @@ interface SocketAuthUser {
 
 export function initSocket(
   httpServer: HttpServer,
-  jwtSecret: string,
+  jwtSecret?: string,
+  ready?: () => Promise<void>,
 ): SocketServer {
   io = new SocketServer(httpServer, {
     cors: {
-      origin: env.CORS_ORIGINS.split(",").map((o) => o.trim()),
+      origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
       credentials: true,
     },
-    transports: ["websocket", "polling"],
+    transports: process.env.VERCEL ? ["websocket"] : ["websocket", "polling"],
+    allowRequest: (req, callback) => callback(null, isAllowedOrigin(req.headers.origin)),
   });
 
-  try {
-    const redisClient = getRedisClient();
-    const pubClient = redisClient.duplicate();
-    const subClient = redisClient.duplicate();
-    io.adapter(createAdapter(pubClient, subClient));
-    logger.info("Socket.io Redis adapter enabled");
-  } catch {
-    logger.warn("Socket.io Redis adapter disabled — Redis unavailable");
-  }
-
   // JWT auth middleware for socket connections
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
+    try {
+      if (ready) await ready();
+      await connectSocketAdapter();
+    } catch { return next(new Error("Service is temporarily unavailable")); }
     const token = socket.handshake.auth.token as string | undefined;
     if (!token) {
       return next(new Error("Authentication required"));
     }
 
     try {
-      const payload = jwt.verify(token, jwtSecret) as SocketAuthUser;
+      const payload = jwt.verify(token, jwtSecret || process.env.JWT_SECRET!) as SocketAuthUser;
       void User.findById(payload._id).select('+sessionVersion').lean().then((user) => {
         if (!user || !user.isActive || user.status !== 'active' || user.forcePasswordChange || !user.hospitalId ||
             user.hospitalId.toString() !== payload.hospitalId || user.role !== payload.role ||
@@ -78,6 +74,32 @@ export function initSocket(
 
   logger.info("Socket.io initialized");
   return io;
+}
+
+let adapterReady: Promise<void> | undefined;
+
+export async function connectSocketAdapter(): Promise<void> {
+  if (!io) return;
+  if (!adapterReady) adapterReady = (async () => {
+    const client = getRedisClient();
+    const pubClient = client.duplicate({ lazyConnect: true });
+    const subClient = client.duplicate({ lazyConnect: true });
+    pubClient.on('error', () => logger.warn('Socket publisher connection error'));
+    subClient.on('error', () => logger.warn('Socket subscriber connection error'));
+    try {
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+    } catch (error) {
+      pubClient.disconnect();
+      subClient.disconnect();
+      throw error;
+    }
+  })().catch(error => {
+    adapterReady = undefined;
+    if (process.env.NODE_ENV === 'production') throw error;
+    logger.warn('Socket adapter unavailable in local development');
+  });
+  return adapterReady;
 }
 
 // Helper: emit to a specific user

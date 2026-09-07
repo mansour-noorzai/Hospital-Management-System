@@ -2,7 +2,7 @@ import http from 'http';
 import { app } from './app';
 import { connectDB, disconnectDB } from './db/mongoose';
 import { connectRedis, disconnectRedis } from './db/redis';
-import { initSocket } from './socket';
+import { initSocket, connectSocketAdapter } from './socket';
 import { env } from './config/env';
 import { logger } from './middleware/requestLogger';
 import { fetchSecrets } from './config/secrets';
@@ -23,6 +23,7 @@ async function bootstrap() {
 
   const server = http.createServer(app);
   initSocket(server, secrets.JWT_SECRET);
+  await connectSocketAdapter();
 
   server.listen(env.PORT, () => {
     logger.info(`HMS API running on port ${env.PORT} [${env.NODE_ENV}]`);

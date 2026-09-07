@@ -7,7 +7,9 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io('/', {
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionDelayMax: 10000,
     });
   }
   return socket;
@@ -17,7 +19,8 @@ export function connectSocket(): void {
   const token = store.getState().auth.accessToken;
   if (!token) return;
   const s = getSocket();
-  s.auth = { token };
+  // Obtain a fresh JWT after a reconnect or access-token rotation.
+  s.auth = callback => callback({ token: store.getState().auth.accessToken });
   s.connect();
 }
 

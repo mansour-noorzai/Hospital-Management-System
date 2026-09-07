@@ -7,6 +7,9 @@ For Vite development, both `http://localhost:5173` and `http://127.0.0.1:5173` a
 
 # MediCore Hospital Management System
 
+For Vercel deployment with persistent demo data, see [the deployment guide](docs/VERCEL_DEPLOYMENT.md).
+The root `vercel.json` configures the frontend, API, WebSockets and protected scheduled maintenance.
+
 A redesigned full-stack hospital management system built with React, TypeScript, Express, MongoDB, Redis and Socket.IO.
 
 ## What is included

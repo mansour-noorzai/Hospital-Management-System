@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { waitUntil } from '@vercel/functions';
 import { AuditLog } from '../models/AuditLog';
 import { logger } from './requestLogger';
 
@@ -25,7 +26,7 @@ export function auditLog(options: AuditOptions) {
     res.json = function(body: unknown) {
       // Only audit successful mutations
       if (res.statusCode >= 200 && res.statusCode < 300 && req.user) {
-        AuditLog.create({
+        const write = AuditLog.create({
           actorId: req.user._id,
           actorRole: req.user.role,
           action: options.action,
@@ -35,7 +36,8 @@ export function auditLog(options: AuditOptions) {
           after: options.sanitize ? options.sanitize(body) : body as Record<string, unknown>,
           ip: req.ip,
           userAgent: req.headers['user-agent'],
-        }).catch(err => logger.error('AuditLog write failed', { error: (err as Error).message }));
+        }).catch(() => logger.error('AuditLog write failed'));
+        if (process.env.VERCEL) waitUntil(write);
       }
       return originalJson(body);
     };
@@ -56,7 +58,8 @@ export function auditMutations(req: Request, res: Response, next: NextFunction):
       const response = body as { data?: { _id?: unknown; user?: { _id?: unknown }; patient?: { _id?: unknown } } };
       const resourceId = String(req.params.id ?? response?.data?._id ?? response?.data?.user?._id ?? response?.data?.patient?._id ?? 'collection');
       const changedFields = Object.keys((req.body ?? {}) as Record<string, unknown>).filter(key => !SECRET_FIELDS.has(key));
-      AuditLog.create({ actorId: req.user._id, actorRole: req.user.role, action: `${req.method.toLowerCase()}.${req.path}`, resourceType: req.path.split('/').filter(Boolean)[0] ?? 'unknown', resourceId, after: { changedFields, statusCode: res.statusCode }, ip: req.ip, userAgent: req.headers['user-agent'] }).catch(error => logger.error('AuditLog write failed', { error: (error as Error).message }));
+      const write = AuditLog.create({ actorId: req.user._id, actorRole: req.user.role, action: `${req.method.toLowerCase()}.${req.path}`, resourceType: req.path.split('/').filter(Boolean)[0] ?? 'unknown', resourceId, after: { changedFields, statusCode: res.statusCode }, ip: req.ip, userAgent: req.headers['user-agent'] }).catch(() => logger.error('AuditLog write failed'));
+      if (process.env.VERCEL) waitUntil(write);
     }
     return originalJson(body);
   };

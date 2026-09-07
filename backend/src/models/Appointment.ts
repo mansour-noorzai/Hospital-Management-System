@@ -49,7 +49,7 @@ AppointmentSchema.plugin(tenantPlugin);
 // Partial index: only applies to non-cancelled appointments
 AppointmentSchema.index(
   { hospitalId: 1, doctor: 1, date: 1, timeSlot: 1 },
-  { unique: true, partialFilterExpression: { status: { $nin: ['cancelled', 'noShow'] } } }
+  { unique: true, partialFilterExpression: { status: { $in: ['scheduled', 'confirmed', 'inProgress', 'completed'] } } }
 );
 
 // Auto-generate appointmentId

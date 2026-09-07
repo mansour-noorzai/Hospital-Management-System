@@ -10,26 +10,53 @@ import { Appointment } from '../models/Appointment';
 import { Drug } from '../models/Drug';
 import { Prescription } from '../models/Prescription';
 import { InventoryItem } from '../models/InventoryItem';
+import { InventoryCategory } from '../models/InventoryCategory';
 import { StockMovement } from '../models/StockMovement';
 import { Invoice } from '../models/Invoice';
 import { LabOrder } from '../models/LabOrder';
 import { LabResult } from '../models/LabResult';
 import { Document } from '../models/Document';
-import { PermissionOverride } from '../models/PermissionOverride';
-import { RefreshToken } from '../models/RefreshToken';
 
-const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'DemoPass123!';
+import mongoose, { Model, Types } from 'mongoose';
+import { createHash } from 'node:crypto';
 
-async function main() {
+const SEED_VERSION = 'medicore-demo-v1';
+
+/** Stable IDs make interrupted and concurrent seed attempts safe to resume. */
+async function ensureRecord<T>(model: Model<T>, key: string, data: Record<string, unknown>) {
+  const _id = new Types.ObjectId(createHash('sha256').update(`${SEED_VERSION}:${key}`).digest('hex').slice(0, 24));
+  const existing = await model.findById(_id);
+  if (existing) return existing;
+  try {
+    return await model.create({ ...data, _id });
+  } catch (error) {
+    if ((error as { code?: number }).code === 11000) {
+      const concurrent = await model.findById(_id);
+      if (concurrent) return concurrent;
+    }
+    throw error;
+  }
+}
+
+
+export async function seedDemo() {
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_SEED !== 'true') {
     throw new Error('Demo seeding is disabled in production. Set ALLOW_DEMO_SEED=true only for an isolated demo environment.');
   }
 
-  await connectDB();
+  const DEMO_PASSWORD = process.env.DEMO_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'DemoPass123!');
+  if (process.env.NODE_ENV === 'production' && (process.env.DEMO_MODE !== 'true' || DEMO_PASSWORD.length < 16)) {
+    throw new Error('Production demo seeding requires DEMO_MODE=true and a DEMO_PASSWORD of at least 16 characters.');
+  }
+  const runs = mongoose.connection.collection<{ _id: string; completedAt?: Date }>('deployment_seeds');
+  if (await runs.findOne({ _id: SEED_VERSION, completedAt: { $exists: true } })) {
+    console.log('Demo seed already completed; preserving existing records and passwords.');
+    return;
+  }
 
   let hospital = await Hospital.findOne({ slug: 'medicore-demo' });
   if (!hospital) {
-    hospital = await Hospital.create({
+    hospital = await ensureRecord(Hospital, 'hospital', {
       name: 'MediCore Demo Hospital',
       systemName: 'MediCore Hospital Management System',
       shortName: 'MediCore',
@@ -52,42 +79,24 @@ async function main() {
 
   const hospitalId = hospital._id;
 
-  // Remove only records belonging to this dedicated demo tenant.
-  await Promise.all([
-    PermissionOverride.deleteMany({ hospitalId }),
-    RefreshToken.deleteMany({ hospitalId }),
-    Document.deleteMany({ hospitalId }),
-    LabResult.deleteMany({ hospitalId }),
-    LabOrder.deleteMany({ hospitalId }),
-    Invoice.deleteMany({ hospitalId }),
-    StockMovement.deleteMany({ hospitalId }),
-    InventoryItem.deleteMany({ hospitalId }),
-    Prescription.deleteMany({ hospitalId }),
-    Drug.deleteMany({ hospitalId }),
-    Appointment.deleteMany({ hospitalId }),
-    Doctor.deleteMany({ hospitalId }),
-    Nurse.deleteMany({ hospitalId }),
-    Receptionist.deleteMany({ hospitalId }),
-    Patient.deleteMany({ hospitalId }),
-    Department.deleteMany({ hospitalId }),
-    User.deleteMany({ hospitalId }),
-  ]);
+  await ensureRecord(InventoryCategory, 'category-ppe', { hospitalId, name: 'PPE', description: 'Personal protective equipment' });
+  await ensureRecord(InventoryCategory, 'category-consumable', { hospitalId, name: 'Consumable', description: 'Everyday hospital supplies' });
 
-  const cardiology = await Department.create({
+  const cardiology = await ensureRecord(Department, 'cardiology', {
     hospitalId,
     name: 'Cardiology',
     description: 'Cardiac consultation and follow-up services',
     bedCount: 24,
     location: 'Block A - Floor 2',
   });
-  const general = await Department.create({
+  const general = await ensureRecord(Department, 'general', {
     hospitalId,
     name: 'General Medicine',
     description: 'General outpatient and inpatient care',
     bedCount: 32,
     location: 'Block B - Floor 1',
   });
-  await Department.create({
+  await ensureRecord(Department, 'laboratory', {
     hospitalId,
     name: 'Laboratory',
     description: 'Clinical laboratory services',
@@ -95,7 +104,7 @@ async function main() {
     location: 'Block C - Ground Floor',
   });
 
-  const admin = await User.create({
+  const admin = await ensureRecord(User, 'admin', {
     hospitalId,
     firstName: 'Demo',
     lastName: 'Administrator',
@@ -109,7 +118,7 @@ async function main() {
     preferredLanguage: 'en',
   });
 
-  const doctorUser = await User.create({
+  const doctorUser = await ensureRecord(User, 'doctor-user', {
     hospitalId,
     firstName: 'Ahmad',
     lastName: 'Rahimi',
@@ -122,7 +131,7 @@ async function main() {
     isActive: true,
     forcePasswordChange: false,
   });
-  const doctor = await Doctor.create({
+  const doctor = await ensureRecord(Doctor, 'doctor', {
     hospitalId,
     userId: doctorUser._id,
     specialization: 'Cardiology',
@@ -141,7 +150,7 @@ async function main() {
     ],
   });
 
-  const nurseUser = await User.create({
+  const nurseUser = await ensureRecord(User, 'nurse-user', {
     hospitalId,
     firstName: 'Maryam',
     lastName: 'Noori',
@@ -154,7 +163,7 @@ async function main() {
     isActive: true,
     forcePasswordChange: false,
   });
-  await Nurse.create({
+  await ensureRecord(Nurse, 'nurse', {
     hospitalId,
     userId: nurseUser._id,
     ward: 'General Ward',
@@ -163,7 +172,7 @@ async function main() {
     qualification: ['Registered Nurse'],
   });
 
-  const receptionistUser = await User.create({
+  const receptionistUser = await ensureRecord(User, 'receptionist-user', {
     hospitalId,
     firstName: 'Farid',
     lastName: 'Ahmadi',
@@ -175,13 +184,13 @@ async function main() {
     isActive: true,
     forcePasswordChange: false,
   });
-  await Receptionist.create({
+  await ensureRecord(Receptionist, 'receptionist', {
     hospitalId,
     userId: receptionistUser._id,
     department: general._id,
   });
 
-  const patientUser = await User.create({
+  const patientUser = await ensureRecord(User, 'patient-user', {
     hospitalId,
     firstName: 'Sami',
     lastName: 'Karimi',
@@ -196,7 +205,7 @@ async function main() {
     isActive: true,
     forcePasswordChange: false,
   });
-  const patient = await Patient.create({
+  const patient = await ensureRecord(Patient, 'patient', {
     hospitalId,
     userId: patientUser._id,
     bloodGroup: 'O+',
@@ -208,7 +217,7 @@ async function main() {
     insuranceInfo: { provider: 'Demo Health Insurance', policyNumber: 'DHI-2026-1001', expiryDate: new Date('2027-12-31') },
   });
 
-  const secondPatientUser = await User.create({
+  const secondPatientUser = await ensureRecord(User, 'patient2-user', {
     hospitalId,
     firstName: 'Laila',
     lastName: 'Hosseini',
@@ -222,7 +231,7 @@ async function main() {
     isActive: true,
     forcePasswordChange: false,
   });
-  const secondPatient = await Patient.create({
+  const secondPatient = await ensureRecord(Patient, 'patient2', {
     hospitalId,
     userId: secondPatientUser._id,
     bloodGroup: 'A+',
@@ -238,7 +247,7 @@ async function main() {
   twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
   twoDaysAgo.setHours(0, 0, 0, 0);
 
-  const upcomingAppointment = await Appointment.create({
+  const upcomingAppointment = await ensureRecord(Appointment, 'upcoming-appointment', {
     hospitalId,
     patient: patient._id,
     doctor: doctor._id,
@@ -250,7 +259,7 @@ async function main() {
     reason: 'Blood pressure follow-up',
     createdBy: receptionistUser._id,
   });
-  const completedAppointment = await Appointment.create({
+  const completedAppointment = await ensureRecord(Appointment, 'completed-appointment', {
     hospitalId,
     patient: secondPatient._id,
     doctor: doctor._id,
@@ -264,7 +273,7 @@ async function main() {
     createdBy: receptionistUser._id,
   });
 
-  const paracetamol = await Drug.create({
+  const paracetamol = await ensureRecord(Drug, 'paracetamol', {
     hospitalId,
     name: 'Paracetamol 500 mg (Demo)',
     code: 'MED-PARA-500-DEMO',
@@ -274,7 +283,7 @@ async function main() {
     reorderLevel: 40,
     description: 'Pain and fever relief',
   });
-  const amlodipine = await Drug.create({
+  const amlodipine = await ensureRecord(Drug, 'amlodipine', {
     hospitalId,
     name: 'Amlodipine 5 mg (Demo)',
     code: 'MED-AMLO-5-DEMO',
@@ -285,7 +294,7 @@ async function main() {
     description: 'Calcium-channel blocker',
   });
 
-  const prescription = await Prescription.create({
+  const prescription = await ensureRecord(Prescription, 'active-prescription', {
     hospitalId,
     patientId: patient._id,
     doctorId: doctor._id,
@@ -296,7 +305,7 @@ async function main() {
     status: 'active',
     notes: 'Take at the same time each day.',
   });
-  await Prescription.create({
+  await ensureRecord(Prescription, 'dispensed-prescription', {
     hospitalId,
     patientId: secondPatient._id,
     doctorId: doctor._id,
@@ -309,7 +318,7 @@ async function main() {
     dispensedAt: now,
   });
 
-  const gloves = await InventoryItem.create({
+  const gloves = await ensureRecord(InventoryItem, 'gloves', {
     hospitalId,
     name: 'Examination Gloves',
     code: 'SUP-GLOVE-DEMO',
@@ -319,7 +328,7 @@ async function main() {
     reorderLevel: 100,
     supplier: 'Demo Medical Supply',
   });
-  const syringes = await InventoryItem.create({
+  const syringes = await ensureRecord(InventoryItem, 'syringes', {
     hospitalId,
     name: '5 ml Syringe',
     code: 'SUP-SYR-5-DEMO',
@@ -329,7 +338,7 @@ async function main() {
     reorderLevel: 100,
     supplier: 'Demo Medical Supply',
   });
-  await StockMovement.create({
+  await ensureRecord(StockMovement, 'gloves-opening', {
     hospitalId,
     itemId: gloves._id,
     type: 'in',
@@ -339,7 +348,7 @@ async function main() {
     reason: 'Opening demo stock',
     performedBy: admin._id,
   });
-  await StockMovement.create({
+  await ensureRecord(StockMovement, 'syringes-opening', {
     hospitalId,
     itemId: syringes._id,
     type: 'in',
@@ -350,7 +359,7 @@ async function main() {
     performedBy: admin._id,
   });
 
-  const invoice = await Invoice.create({
+  const invoice = await ensureRecord(Invoice, 'invoice', {
     hospitalId,
     patient: patient._id,
     appointment: upcomingAppointment._id,
@@ -368,7 +377,7 @@ async function main() {
     payments: [{ amount: 300, method: 'cash', paidAt: now, recordedBy: receptionistUser._id, reference: 'DEMO-CASH-001' }],
   });
 
-  const labOrder = await LabOrder.create({
+  const labOrder = await ensureRecord(LabOrder, 'lab-order', {
     hospitalId,
     patient: patient._id,
     doctor: doctor._id,
@@ -381,7 +390,7 @@ async function main() {
     status: 'completed',
     notes: 'Baseline follow-up tests',
   });
-  await LabResult.create({
+  await ensureRecord(LabResult, 'lab-result', {
     hospitalId,
     labOrder: labOrder._id,
     patient: patient._id,
@@ -398,7 +407,7 @@ async function main() {
     notes: 'Results within expected range.',
   });
 
-  await Document.create({
+  await ensureRecord(Document, 'certificate', {
     hospitalId,
     type: 'medical_certificate',
     patientId: patient._id,
@@ -409,11 +418,12 @@ async function main() {
     notes: 'Demo certificate',
   });
 
-  await Department.findByIdAndUpdate(cardiology._id, { head: doctor._id });
+  await Department.updateOne({ _id: cardiology._id, head: { $exists: false } }, { $set: { head: doctor._id } });
+  await runs.updateOne({ _id: SEED_VERSION }, { $set: { completedAt: new Date() } }, { upsert: true });
 
   console.log('\nDemo hospital data created successfully.');
   console.log(`Hospital: ${hospital.name}`);
-  console.log(`Password for every demo account: ${DEMO_PASSWORD}`);
+  console.log('Demo passwords come from DEMO_PASSWORD; values are never printed.');
   console.log('Admin:        admin@medicore.demo');
   console.log('Doctor:       doctor@medicore.demo');
   console.log('Nurse:        nurse@medicore.demo');
@@ -426,11 +436,9 @@ async function main() {
   console.log(`Lab order: ${labOrder.orderId}`);
 }
 
-main()
-  .catch((error) => {
-    console.error('Demo seed failed:', error);
+if (require.main === module) {
+  connectDB().then(() => seedDemo()).catch(() => {
+    console.error('Demo seed failed. Check configuration, database access and existing account conflicts.');
     process.exitCode = 1;
-  })
-  .finally(async () => {
-    await disconnectDB();
-  });
+  }).finally(() => disconnectDB());
+}

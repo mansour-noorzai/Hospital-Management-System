@@ -6,3 +6,8 @@ node_modules/
 .env.local
 dist/
 build/
+.vercel/
+.env.*
+!.env.example
+coverage/
+/public/

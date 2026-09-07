@@ -35,8 +35,10 @@ export function RealtimeQuerySync() {
       }
       for (const key of EVENT_KEYS[event] ?? []) void client.invalidateQueries({ queryKey: key });
     };
+    const reload = () => { void client.invalidateQueries(); };
+    socket.on('connect', reload);
     socket.onAny(handler);
-    return () => { socket.offAny(handler); };
+    return () => { socket.offAny(handler); socket.off('connect', reload); };
   }, [authenticated, client, dispatch]);
   return null;
 }

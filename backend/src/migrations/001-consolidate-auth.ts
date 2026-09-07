@@ -15,7 +15,6 @@
 
 import mongoose, {
   ClientSession,
-  Document,
   Schema,
   Types,
   model,
@@ -52,7 +51,7 @@ interface MigrationOptions {
 // data.  The raw field remains accessible via `.lean()` if needed in future.
 // ---------------------------------------------------------------------------
 
-interface IUser extends Document {
+interface IUser {
   userName: string;
   email: string;
   password: string;
@@ -90,13 +89,13 @@ const UserSchema = new Schema<IUser>({
 
 // Use getModel helper to avoid OverwriteModelError when re-running in tests
 const getUserModel = () =>
-  mongoose.models["User"] ?? model<IUser>("User", UserSchema, "users");
+  mongoose.models["User"] ? mongoose.model<IUser>("User") : model<IUser>("User", UserSchema, "users");
 
 // ---------------------------------------------------------------------------
 // Doctor schema (legacy)
 // ---------------------------------------------------------------------------
 
-interface IDoctor extends Document {
+interface IDoctor {
   name: string;
   doctorId: string;
   email: string;
@@ -132,13 +131,13 @@ const DoctorSchema = new Schema<IDoctor>(
 );
 
 const getDoctorModel = () =>
-  mongoose.models["Doctor"] ?? model<IDoctor>("Doctor", DoctorSchema, "doctors");
+  mongoose.models["Doctor"] ? mongoose.model<IDoctor>("Doctor") : model<IDoctor>("Doctor", DoctorSchema, "doctors");
 
 // ---------------------------------------------------------------------------
 // Nurse schema (legacy)
 // ---------------------------------------------------------------------------
 
-interface INurse extends Document {
+interface INurse {
   name: string;
   email: string;
   phoneno?: string;
@@ -172,7 +171,7 @@ const NurseSchema = new Schema<INurse>(
 );
 
 const getNurseModel = () =>
-  mongoose.models["Nurse"] ?? model<INurse>("Nurse", NurseSchema, "nurses");
+  mongoose.models["Nurse"] ? mongoose.model<INurse>("Nurse") : model<INurse>("Nurse", NurseSchema, "nurses");
 
 // ---------------------------------------------------------------------------
 // Core migration logic

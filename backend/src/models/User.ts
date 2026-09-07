@@ -82,6 +82,8 @@ const UserSchema = new Schema<IUser, UserModel, IUserMethods>(
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.password;
         delete ret.sessionVersion;
+        delete ret.failedLoginAttempts;
+        delete ret.lockedUntil;
         delete ret.passwordResetToken;
         delete ret.passwordResetExpiry;
         return ret;
@@ -108,17 +110,5 @@ UserSchema.methods.isLocked = function (): boolean {
   if (!this.lockedUntil) return false;
   return this.lockedUntil > new Date();
 };
-
-// Never return password in JSON
-UserSchema.set('toJSON', {
-  transform: (_doc, ret) => {
-    delete ret.password;
-    delete ret.failedLoginAttempts;
-    delete ret.lockedUntil;
-    delete ret.passwordResetToken;
-    delete ret.passwordResetExpiry;
-    return ret;
-  },
-});
 
 export const User = model<IUser, UserModel>('User', UserSchema);
