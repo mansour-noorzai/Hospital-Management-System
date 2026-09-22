@@ -95,3 +95,15 @@ For the isolated demo only, set a new strong `DEMO_PASSWORD` and a unique
 accounts and revokes their sessions once per identifier. Existing hospital records
 and later password edits are preserved. Remove the rotation variable after success.
 Never enable this recovery workflow for real patient data.
+
+To change both the login emails and password of the six seeded demo users, set
+`DEMO_PASSWORD` to a new private password and `DEMO_CREDENTIAL_ROTATION_ID` to
+a new lowercase identifier (letters, digits, underscores or hyphens, at most 40
+characters) for Production. Redeploy. The emails become
+`admin.<id>@medicore.demo`, `doctor.<id>@medicore.demo`,
+`nurse.<id>@medicore.demo`, `receptionist.<id>@medicore.demo`,
+`patient.<id>@medicore.demo`, and `patient2.<id>@medicore.demo`; all six use the
+new password. The one-time marker prevents a later deployment from overwriting
+individual password edits. Remove `DEMO_CREDENTIAL_ROTATION_ID` after verifying
+the new logins. The old `DEMO_PASSWORD_ROTATION_ID` setting can be removed after
+its earlier rotation has finished. Neither workflow changes non-demo accounts.

@@ -3,6 +3,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
 import { seedDemo } from './seed-demo';
 import { rotateDemoPassword } from './rotate-demo-password';
+import { rotateDemoCredentials } from './rotate-demo-credentials';
 import { User } from '../models/User';
 import { Hospital } from '../models/Hospital';
 import { Patient } from '../models/Patient';
@@ -98,5 +99,37 @@ test('explicit demo recovery rotates once and preserves subsequent password edit
     expect(preserved!.sessionVersion).toBe(version);
     expect(await Appointment.countDocuments()).toBe(2);
     expect(await Invoice.countDocuments()).toBe(1);
+  } finally { process.env = saved; }
+}, 120000);
+
+test('credential rotation changes six demo emails and passwords once without changing other users', async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.DEMO_MODE = 'true';
+    process.env.ALLOW_DEMO_SEED = 'true';
+    process.env.DEMO_PASSWORD = 'Another-Strong-Demo-Password-2026!';
+    process.env.DEMO_CREDENTIAL_ROTATION_ID = 'handover_2026';
+    const hospital = await Hospital.findOne({ slug: 'medicore-demo' });
+    const other = await User.create({ hospitalId: hospital!._id, firstName: 'Other', lastName: 'Patient',
+      email: 'other@example.com', password: 'Keep-This-Password-2026!', role: 'patient' });
+    await rotateDemoCredentials();
+    for (const name of ['admin', 'doctor', 'nurse', 'receptionist', 'patient', 'patient2']) {
+      const oldLogin = await request(app).post('/api/v1/auth/login')
+        .send({ email: `${name}@medicore.demo`, password: process.env.DEMO_PASSWORD });
+      expect(oldLogin.status).toBe(401);
+      const newLogin = await request(app).post('/api/v1/auth/login')
+        .send({ email: `${name}.handover_2026@medicore.demo`, password: process.env.DEMO_PASSWORD });
+      expect({ name, status: newLogin.status }).toEqual({ name, status: 200 });
+    }
+    const admin = await User.findOne({ email: 'admin.handover_2026@medicore.demo' }).select('+password +sessionVersion');
+    const version = admin!.sessionVersion;
+    admin!.password = 'Individually-Changed-Password-2026!';
+    await admin!.save();
+    await rotateDemoCredentials();
+    const preserved = await User.findById(admin!._id).select('+password +sessionVersion');
+    expect(await preserved!.comparePassword('Individually-Changed-Password-2026!')).toBe(true);
+    expect(preserved!.sessionVersion).toBe(version);
+    expect((await User.findById(other._id))!.email).toBe('other@example.com');
+    expect(await (await User.findById(other._id).select('+password'))!.comparePassword('Keep-This-Password-2026!')).toBe(true);
   } finally { process.env = saved; }
 }, 120000);
