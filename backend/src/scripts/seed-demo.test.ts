@@ -102,7 +102,7 @@ test('explicit demo recovery rotates once and preserves subsequent password edit
   } finally { process.env = saved; }
 }, 120000);
 
-test('credential rotation changes six demo emails and passwords once without changing other users', async () => {
+test('credential rotation restores six canonical demo emails and changes passwords once without changing other users', async () => {
   const saved = { ...process.env };
   try {
     process.env.DEMO_MODE = 'true';
@@ -112,16 +112,19 @@ test('credential rotation changes six demo emails and passwords once without cha
     const hospital = await Hospital.findOne({ slug: 'medicore-demo' });
     const other = await User.create({ hospitalId: hospital!._id, firstName: 'Other', lastName: 'Patient',
       email: 'other@example.com', password: 'Keep-This-Password-2026!', role: 'patient' });
+    for (const name of ['admin', 'doctor', 'nurse', 'receptionist', 'patient', 'patient2']) {
+      await User.updateOne({ email: `${name}@medicore.demo` }, { email: `${name}.previous@medicore.demo` });
+    }
     await rotateDemoCredentials();
     for (const name of ['admin', 'doctor', 'nurse', 'receptionist', 'patient', 'patient2']) {
-      const oldLogin = await request(app).post('/api/v1/auth/login')
+      const previousLogin = await request(app).post('/api/v1/auth/login')
+        .send({ email: `${name}.previous@medicore.demo`, password: process.env.DEMO_PASSWORD });
+      expect(previousLogin.status).toBe(401);
+      const canonicalLogin = await request(app).post('/api/v1/auth/login')
         .send({ email: `${name}@medicore.demo`, password: process.env.DEMO_PASSWORD });
-      expect(oldLogin.status).toBe(401);
-      const newLogin = await request(app).post('/api/v1/auth/login')
-        .send({ email: `${name}.handover_2026@medicore.demo`, password: process.env.DEMO_PASSWORD });
-      expect({ name, status: newLogin.status }).toEqual({ name, status: 200 });
+      expect({ name, status: canonicalLogin.status }).toEqual({ name, status: 200 });
     }
-    const admin = await User.findOne({ email: 'admin.handover_2026@medicore.demo' }).select('+password +sessionVersion');
+    const admin = await User.findOne({ email: 'admin@medicore.demo' }).select('+password +sessionVersion');
     const version = admin!.sessionVersion;
     admin!.password = 'Individually-Changed-Password-2026!';
     await admin!.save();
