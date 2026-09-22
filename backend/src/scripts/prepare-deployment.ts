@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { seedDemo } from './seed-demo';
 import { prepareSharedState } from '../db/sharedState';
 import { rotateDemoPassword } from './rotate-demo-password';
+import { rotateDemoCredentials } from './rotate-demo-credentials';
 import '../routes';
 
 async function prepare() {
@@ -21,6 +22,7 @@ async function prepare() {
     await seedDemo();
   }
   await rotateDemoPassword();
+  await rotateDemoCredentials();
   console.log('Deployment database preparation completed.');
 }
 
