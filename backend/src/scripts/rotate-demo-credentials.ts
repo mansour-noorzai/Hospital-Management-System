@@ -17,13 +17,13 @@ export async function rotateDemoCredentials() {
   }
 
   const runs = mongoose.connection.collection<{ _id: string; completedAt: Date }>('deployment_seeds');
-  const marker = `demo-credential-rotation:${rotationId}`;
+  const marker = `demo-credential-rotation:v2:${rotationId}`;
   if (await runs.findOne({ _id: marker })) return;
 
   const ids = accountKeys.map(key => new Types.ObjectId(createHash('sha256').update(`medicore-demo-v1:${key}`).digest('hex').slice(0, 24)));
   const users = await User.find({ _id: { $in: ids }, email: /@medicore\.demo$/ }).select('+password +sessionVersion');
   if (users.length !== ids.length) throw new Error('Expected all six seeded demo accounts before credential rotation.');
-  const emails = loginNames.map(name => `${name}.${rotationId}@medicore.demo`);
+  const emails = loginNames.map(name => `${name}@medicore.demo`);
   if (await User.exists({ email: { $in: emails }, _id: { $nin: ids } })) {
     throw new Error('A requested demo email already belongs to another account.');
   }
@@ -41,5 +41,5 @@ export async function rotateDemoCredentials() {
     await RefreshToken.updateMany({ user: user._id, isRevoked: false }, { isRevoked: true });
   }
   await runs.updateOne({ _id: marker }, { $setOnInsert: { completedAt: new Date() } }, { upsert: true });
-  console.log('One-time demo credential rotation completed for six accounts.');
+  console.log('One-time canonical demo credential rotation completed for six accounts.');
 }
